@@ -1,0 +1,176 @@
+---
+title: "main"
+author: "Fan Yang"
+date: "4/17/2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Preprocessing data
+```{r}
+# load library
+library(matrixStats)
+# read raw data
+data_final <- read.csv('../data/data_final.csv',header = T)
+# get stock names
+stock.names <- colnames(data_final)[-1]
+date <- as.Date(data_final$X.1)[-length(nrow(data_final))]
+
+# compute return
+data_mat <- as.matrix(data_final[,-1])
+data_mat <- apply(data_mat,2, function(vec) return(diff(vec) / vec[-length(vec)]) )
+data_mat <- cbind(date ,data_mat )
+colnames(data_mat) <- c('date',stock.names)
+
+# normalize data
+stock_mat <- t(t(data_mat[,-1]) - colMeans(data_mat[,-1]))
+data_mat <- as.data.frame(data_mat) # convert to dataframe
+
+stock.mat <- stock_mat %*% diag(1/ colSds(stock_mat) ) # matrix 5031*482
+colnames(stock.mat) <- stock.names
+
+# convert to dataframe
+stock_norm <- as.data.frame(cbind(date,as.data.frame(stock.mat)))
+# assign names
+names(stock_norm) <- c('date',stock.names)
+
+write.csv = FALSE
+if(write.csv) write.csv(stock_norm, file = '../data/stock_normalize_norm.csv', row.names = FALSE)
+
+```
+## Try to find the cluster perfermance during each period.
+
+```{r}
+# load functions
+source('../lib/Cluster.R')
+# set number of clusters
+num.cluster = 5
+cluster.label <- matrix(0,nrow = 20,ncol = 482 + 1)
+cluster.label[,1] <- 1998:2017
+mean.mat <- matrix(0,nrow = 20,ncol = num.cluster + 1)
+mean.mat[,1] <- 1998:2017
+for (i in 1998:2017){
+  date.ind = which(date >= paste(i,"01-01",sep = '-') &
+                     date < paste(i+1,"01-01",sep = '-'))
+  this.cluster = cluster(num.cluster = num.cluster, 
+                    data = stock.mat[date.ind,],
+                    seed = 1,
+                    run.kmeans = TRUE)
+  table.cluster <- table(this.cluster$label)
+  cluster.label[i-1997,-1] <- this.cluster$label
+  lownum.label <- names(table.cluster)[which(table.cluster <= 5)]
+  mean.mat[i-1997,-1] <- as.vector(this.cluster$meansd$mean)
+  # plot(this.cluster$meansd$mean)
+  # dev.off()
+  lownum.ind <- match(lownum.label,this.cluster$label)
+  #print(this.cluster$label[lownum.ind])
+}
+
+library(ggplot2)
+ggplot() + 
+  geom_point(aes(x = mean.mat[,1],y = mean.mat[,6])) + 
+  geom_point(aes(x = mean.mat[,1],y = mean.mat[,5])) + 
+  geom_point(aes(x = mean.mat[,1],y = mean.mat[,4])) + 
+  geom_point(aes(x = mean.mat[,1],y = mean.mat[,3])) + 
+  geom_point(aes(x = mean.mat[,1],y = mean.mat[,2]))
+```
+#### Analyze event influence 1
+```{r}
+date.ind = which(date >= paste(2008,"01-01",sep = '-') &
+                   date < paste(2010,"01-01",sep = '-'))
+cluster.2002 = cluster(num.cluster = 5, 
+                  data = stock.mat[date.ind,],
+                  seed = 1,
+                  run.kmeans = TRUE)
+table(cluster.2002$label)
+meansd.2002 <- cluster.2002$meansd
+meansd.2002$cluster.name
+meansd.2002$mean
+which(cluster.2002$label == 3)
+data.2002 = stock_norm[date.ind,-1]
+mean(data.2002$ETP + data.2002$ARWR)/2
+ggplot(stock_norm[date.ind,]) + 
+  geom_point(aes(x = date,y = ETP, col ='red')) + 
+  geom_point(aes(x = date,y = ENB, col ='black')) +
+  geom_point(aes(x = date,y = GEL, col ='black')) +
+  geom_point(aes(x = date,y = SGU, col ='black'))
+  
+ggplot(data_mat[date.ind,]) + 
+  geom_point(aes(x = date,y = ARWR, col = 'blue')) +
+  geom_point(aes(x = date,y = TECH, col = 'green')) +
+  geom_point(aes(x = date,y = ALXN, col = 'green')) + 
+  geom_point(aes(x = date,y = AMGN, col = 'green'))
+
+
+
+#  geom_smooth(aes(x = date,y = ARWR, col = 'blue'))
+```
+
+#### Analyze event influence 2
+```{r}
+date.ind = which(date >= paste(2010,"01-01",sep = '-') &
+                   date < paste(2012,"01-01",sep = '-'))
+cluster.2015 = cluster(num.cluster = 9, 
+                  data = stock.mat[date.ind,],
+                  seed = 1,
+                  run.kmeans = TRUE)
+table(cluster.2015$label)
+
+which(cluster.2015$label == 7 |cluster.2015$label == 5)
+
+ggplot(stock_norm[date.ind,]) + 
+  geom_point(aes(x = date,y = SENEB, col ='pink')) +  # 2010
+  geom_point(aes(x = date,y = SUN, col ='red')) +  # 2010
+  geom_point(aes(x = date,y = ETP, col ='green')) + 
+  geom_point(aes(x = date,y = ENB, col ='green')) +
+  geom_point(aes(x = date,y = GEL, col ='green')) +
+  geom_point(aes(x = date,y = SGU, col ='green')) +
+  geom_point(aes(x = date,y = ARWR, col = 'blue')) +
+  geom_point(aes(x = date,y = TECH, col = 'green')) +
+  geom_point(aes(x = date,y = ALXN, col = 'green')) + 
+  geom_point(aes(x = date,y = AMGN, col = 'green'))
+
+ggplot(stock_norm[date.ind,]) + 
+  geom_point(aes(x = date,y = ETP, col ='red')) +   # 2002
+  geom_point(aes(x = date,y = ENB, col ='green')) +
+  geom_point(aes(x = date,y = GEL, col ='green')) +
+  geom_point(aes(x = date,y = SGU, col ='green')) +
+  geom_point(aes(x = date,y = ARWR, col = 'blue')) + # 2002
+  geom_point(aes(x = date,y = TECH, col = 'green')) +
+  geom_point(aes(x = date,y = ALXN, col = 'green')) + 
+  geom_point(aes(x = date,y = AMGN, col = 'green'))
+  
+ggplot(data_mat[date.ind,]) + 
+  geom_point(aes(x = date,y = ARWR, col = 'blue')) +
+  geom_point(aes(x = date,y = TECH, col = 'green')) +
+  geom_point(aes(x = date,y = ALXN, col = 'green')) + 
+  geom_point(aes(x = date,y = AMGN, col = 'green'))
+
+```
+
+
+# for loop
+```{r}
+cluster_range = seq(5,100,by=5)
+sharpratio = c()
+count = 1
+for (i in cluster_range){
+  this.weight <- compute_weights(data = stock_mat_clean,
+                                 seed = 1,
+                                 run.kmeans = TRUE,
+                                 run.var = FALSE,
+                                 run.meanvar = TRUE,
+                                 num.cluster = i)
+  backtest_tmp <- backtest(this.weight, data = data_final_clean[,-1])[-c(1:250)]
+  sharpratio[count] <- (prod(backtest_tmp)^(1/19)-1-0.05)/sqrt(var(backtest_tmp-1)*250)
+  count = count + 1
+}
+
+ggplot() + geom_point(aes(x = cluster_range, y = sharpratio))
+
+```
+
+

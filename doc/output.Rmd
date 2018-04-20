@@ -1,0 +1,285 @@
+---
+title: "output"
+author: "Fan Yang"
+date: "4/18/2018"
+output: html_document
+---
+
+```{r load functions}
+library(ggplot2)
+source('../lib/Cluster.R')
+source('../lib/backtest.R')
+source('../lib/compute_weights.R')
+source('../lib/mean_variance.R')
+```
+
+```{r}
+# compute weight matrix
+weight_mat_var <- compute_weights(run.kmeans = T,run.var =T)
+weight_mat_meanvar <- compute_weights(run.kmeans = T,run.meanvar =T)
+
+# back test and get daily return
+test_daily_return_var <- backtest(weight_mat_var)
+test_daily_return_meanvar <- backtest(weight_mat_meanvar)
+
+# extract all daily except first year
+test_daily_return_var_back <- test_daily_return_var[-c(1:250)]
+test_daily_return_meanvar_back <- test_daily_return_meanvar[-c(1:250)]
+
+save(weight_mat_var,file = './output/test_daily_return_var.RData')
+save(test_daily_return_var,file = './output/test_daily_return_var.RData')
+```
+
+```{r}
+var(test_daily_return_var_back)
+# 0.000645393
+prod(test_daily_return_var_back)
+# 3.697451
+prod(test_daily_return_var_back)^(1/19)
+# 1.071247
+sqrt(var(test_daily_return_var_back) / 19)
+# 0.005828212
+
+var(test_daily_return_meanvar_back)
+# 0.002976539
+prod(test_daily_return_meanvar_back)
+# 1.372605e-31
+(prod(test_daily_return_meanvar_back)^(1/19))^(1/250)
+# 0.02374982
+sqrt(var(test_daily_return_meanvar_back) / 19)
+# 0.01251639
+```
+
+```{r EDA}
+ind_0_9 <- which(test_daily_return_var_back < 1)
+length(ind_0_9)
+ind_0_9_1 <- ind_0_9[which(ind_0_9 <= 300)]
+ind_0_9_2 <- ind_0_9[which(ind_0_9 > 300 & ind_0_9 <= 1020)]
+ind_0_9_3 <- ind_0_9[which(ind_0_9 > 1020 & ind_0_9 <= 1500)]
+ind_0_9_4 <- ind_0_9[which(ind_0_9 > 1500 & ind_0_9 <= 2220)]
+ind_0_9_4 <- ind_0_9[which(ind_0_9 > 2220)]
+as.Date(ind_0_9_1[1] + 250, origin = "1998-01-02")
+as.Date(ind_0_9_1[60] + 250, origin = "1998-01-02")
+
+weight_mat_meanvar[5,which(weight_mat_meanvar[5,]>0)]
+
+ggplot() + geom_point(aes(x = ind_0_9_1, y = test_daily_return_meanvar_back[ind_0_9_1] ))
+
+
+# detect outlier
+which.max(data_mat)
+
+```
+
+
+```{r draw graph}
+library(ggplot2)
+layout(matrix(1:2))
+ggplot() + geom_point(aes(x = 1:4740, y = test_daily_return_meanvar_back))
+
+ggplot() + geom_point(aes(x = 1:4740, y = test_daily_return_var_back))
+```
+
+# compare with cluster 3 and cluster 4(with raw data)
+
+cluster number equals 3, and using 482 stocks
+```{r 'cluster num = 3'}
+weight_num3 <- compute_weights(data = stock_mat,
+                            seed = 1,
+                            run.kmeans = TRUE,
+                            run.var = TRUE,
+                            run.meanvar = FALSE,
+                            num.cluster = 3)
+backtest_num3 <- backtest(weight_num3,data = data_final[,-1])
+backtest_num3_back <- backtest_num3[-c(1:250)]
+prod(backtest_num3_back)
+# 20.5886
+prod(backtest_num3_back)^(1/19)
+# 1.172569
+```
+
+cluster number equals 4, and using 482 stocks
+```{r 'cluster num = 4'}
+weight_num4 <- compute_weights(data = stock_mat,
+                            seed = 1,
+                            run.kmeans = TRUE,
+                            run.var = TRUE,
+                            run.meanvar = FALSE,
+                            num.cluster = 4)
+backtest_num4 <- backtest(weight_num4,data = data_final[,-1])
+backtest_num4_back <- backtest_num4[-c(1:250)]
+prod(backtest_num4_back)
+# 66.81702
+prod(backtest_num4_back)^(1/19)
+# 1.247518
+```
+
+# compare with cluster 3 and cluster 4(with processed data)
+```{r 'cluster num = 3'}
+outlier.stock <- c('SUN','FTAI','ARWR','GIII','CASC','SRPT','MERC','LNDC','STRL','OSIS')
+outlier.ind <- match(outlier.stock,stock.names)
+stock_mat_clean <- stock_mat[,outlier.ind]
+data_final_clean <- data_final[,-(outlier.ind+1)]
+match(outlier.stock,colnames(data_final_clean))
+```
+cluster number equals 3, and using 472 stocks
+```{r 'cluster num = 3'}
+weight_num3 <- compute_weights(data = stock_mat_clean,
+                            seed = 1,
+                            run.kmeans = TRUE,
+                            run.var = FALSE,
+                            run.meanvar = TRUE,
+                            num.cluster = 3)
+backtest_num3 <- backtest(weight_num3,data = data_final_clean[,-1])
+backtest_num3_back <- backtest_num3[-c(1:250)]
+save(backtest_num3_back, file = '../output/backtest_num3_back.RData')
+var(backtest_num3_back)
+# 0.000931199
+prod(backtest_num3_back)
+# 11.08409
+prod(backtest_num3_back)^(1/19)
+# 1.13497
+```
+
+cluster number equals 4, and using 472 stocks
+```{r 'cluster num = 4'}
+weight_num4 <- compute_weights(data = stock_mat_clean,
+                            seed = 1,
+                            run.kmeans = TRUE,
+                            run.var = FALSE,
+                            run.meanvar = TRUE,
+                            num.cluster = 4)
+backtest_num4 <- backtest(weight_num4,data = data_final_clean[,-1])
+backtest_num4_back <- backtest_num4[-c(1:250)]
+save(backtest_num4_back, file = '../output/backtest_num4_back.RData')
+var(backtest_num4_back)
+# 0.0007608639
+prod(backtest_num4_back)
+# 75.24634
+prod(backtest_num4_back)^(1/19)
+# 1.255343
+sqrt(var(backtest_num4_back-1)*250)
+(1.255343-1-0.05)/ 0.4361376
+```
+
+cluster number equals 5, and using 472 stocks
+```{r 'cluster num = 5'}
+weight_num5 <- compute_weights(data = stock_mat_clean,
+                            seed = 1,
+                            run.kmeans = TRUE,
+                            run.var = FALSE,
+                            run.meanvar = TRUE,
+                            num.cluster = 5)
+backtest_num5 <- backtest(weight_num5,data = data_final_clean[,-1])
+backtest_num5_back <- backtest_num5[-c(1:250)]
+save(backtest_num5_back, file = '../output/backtest_num5_back.RData')
+var(backtest_num5_back)
+# 0.0006770999
+prod(backtest_num5_back)
+# 63.83179
+prod(backtest_num5_back)^(1/19)
+# 1.24452
+sqrt(var(backtest_num5_back-1)*250)
+(1.24452-1-0.05)/ 0.4114304
+```
+cluster number equals 6, and using 472 stocks
+```{r 'cluster num = 6'}
+weight_num10 <- compute_weights(data = stock_mat_clean,
+                            seed = 1,
+                            run.kmeans = TRUE,
+                            run.var = FALSE,
+                            run.meanvar = TRUE,
+                            num.cluster = 10)
+backtest_num10 <- backtest(weight_num10,data = data_final_clean[,-1])
+backtest_num10_back <- backtest_num10[-c(1:250)]
+save(backtest_num10_back, file = '../output/backtest_num10_back.RData')
+var(backtest_num10_back)
+# 0.0004006955
+prod(backtest_num10_back)
+# 308.7705
+prod(backtest_num10_back)^(1/19)
+# 1.352177
+sqrt(var(backtest_num10_back-1)*250)
+# 0.3165026
+(1.352177-1-0.05)/ 0.3165026
+```
+
+```{r 'cluster num = 7'}
+weight_num7 <- compute_weights(data = stock_mat_clean,
+                            seed = 1,
+                            run.kmeans = TRUE,
+                            run.var = FALSE,
+                            run.meanvar = TRUE,
+                            num.cluster = 7)
+backtest_num7 <- backtest(weight_num7,data = data_final_clean[,-1])
+backtest_num7_back <- backtest_num7[-c(1:250)]
+save(backtest_num7_back, file = '../output/backtest_num7_back.RData')
+var(backtest_num7_back)
+# 0.0005248325
+prod(backtest_num7_back)
+# 177.5902
+prod(backtest_num7_back)^(1/19)
+# 1.31338
+sqrt(var(backtest_num7_back-1)*250)
+# 0.3622266
+(1.31338-1-0.05)/ 0.3622266
+```
+
+```{r 'cluster num = 20'}
+weight_num20 <- compute_weights(data = stock_mat_clean,
+                            seed = 1,
+                            run.kmeans = TRUE,
+                            run.var = FALSE,
+                            run.meanvar = TRUE,
+                            num.cluster = 20)
+backtest_num20 <- backtest(weight_num20,data = data_final_clean[,-1])
+backtest_num20_back <- backtest_num20[-c(1:250)]
+save(backtest_num20_back, file = '../output/backtest_num20_back.RData')
+var(backtest_num20_back)
+# 0.0002763097
+prod(backtest_num20_back)
+# 267.9793
+prod(backtest_num20_back)^(1/19)
+# 1.342131
+sqrt(var(backtest_num20_back-1)*250)
+# 0.2628259
+(1.342131-1-0.05)/ 0.2628259
+```
+
+```{r 'cluster num = 30'}
+weight_num30 <- compute_weights(data = stock_mat_clean,
+                            seed = 1,
+                            run.kmeans = TRUE,
+                            run.var = FALSE,
+                            run.meanvar = TRUE,
+                            num.cluster = 30)
+backtest_num30 <- backtest(weight_num30,data = data_final_clean[,-1])
+backtest_num30_back <- backtest_num30[-c(1:250)]
+save(backtest_num30_back, file = '../output/backtest_num30_back.RData')
+var(backtest_num30_back)
+# 0.0002334161
+prod(backtest_num30_back)
+# 379.301
+prod(backtest_num30_back)^(1/19)
+# 1.366898
+sqrt(var(backtest_num30_back-1)*250)
+# 0.2415658
+(1.366898-1-0.05)/ 0.2415658
+```
+
+```{r}
+
+ggplot() + geom_point(aes(y = backtest_num5_back, x = c(1:4740)))
+
+# num = 5
+ggplot() + geom_point(aes(y = cumprod(backtest_num5_back), x = c(1:4740))) + ylim(0,350)
+summary(cumprod(backtest_num5_back))
+
+# num = 10
+ggplot() + geom_point(aes(y = cumprod(backtest_num10_back), x = c(1:4740))) + ylim(0,350)
+summary(cumprod(backtest_num10_back))
+
+# num = 20
+ggplot() + geom_point(aes(y = cumprod(backtest_num20_back), x = c(1:4740))) + ylim(0,350)
+summary(cumprod(backtest_num20_back))
+```
